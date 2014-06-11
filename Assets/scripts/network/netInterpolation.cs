@@ -6,17 +6,37 @@ public struct packet {
 	public Vector3 position;
 	public Quaternion rotation;
 	public int intstamp;
-	public float timestamp;
+	public double timestamp;
+	public double delay;
 }
 
+// position buffer things
+public struct pb {
+	public Vector3 position;
+	public double time;
+}
+
+/* Doesn't actually interpolate yet - currently just checks previous locations are valid
+ * 
+ * How it works (for when I forget/when other people want to read it):
+ * Client sends messages to server about button presses (in another script)
+ * Server updates location based on these presses (in another script)
+ * Server sends packets back to the client about where they should be from the servers point of view
+ * Client checks that it was at that location previously and if not makes adjustments
+ * 
+ * TODO:
+ * Add a bit that corrects velocity for vehicles not owned by the client (otherwise they just jump everywhere!)
+ * Add XZ plane angle sync aswell (ignore the others as client can predict them accurately enough)
+ */
 public class netInterpolation : MonoBehaviour {
 	NetworkViewID viewID;
 	packet[] packets;
+	pb[] positionBuffer;
 	int currentIntstamp;		// number of "current" packet in interpolation
-	float currentTimestamp;		// time of recieving "current" packet in interpolation
-	Vector3[] bezPosition;		// co-efs for position interpolation
-	Quaternion[] bezRotation;	// co-efs for rotation interpolation
-	int noOfPoints = 0;			// no of points we're interpolating from
+	double currentTimestamp;	// time of recieving "current" packet in interpolation
+	//Vector3[] bezPosition;		// co-efs for position interpolation
+	//Quaternion[] bezRotation;	// co-efs for rotation interpolation
+	/*int noOfPoints = 0;			// no of points we're interpolating from
 	float normalizer = 1;		// cache a divisor for FixedUpdate
 	// Binomial co-efs
 	int[,] BinCoefs = new int[5,5] {
@@ -25,7 +45,7 @@ public class netInterpolation : MonoBehaviour {
 		{1,2,1,0,0},
 		{1,1,0,0,0},
 		{1,0,0,0,0}
-	};
+	};*/
 	bool hasRigidBody;
 
 	// called to start it
@@ -36,14 +56,30 @@ public class netInterpolation : MonoBehaviour {
 		cgt.viewID = cartViewID;
 		cgt.stateSynchronization = NetworkStateSynchronization.Unreliable;
 
-		// fixed no of packets to interpolate from
+		// check for rigidbody
+		hasRigidBody = (gameObject.rigidbody!=null);
+
+		// fixed no of packets to interpolate from (I know, I know...)
 		packets = new packet[5];
+		for(int i=0;i<5;i++) {
+			packets[i].position = gameObject.transform.position;
+			if(hasRigidBody) packets[i].rotation = gameObject.rigidbody.rotation;
+			packets[i].timestamp = Network.time;
+			packets[i].intstamp = 0;
+			packets[i].delay = 0;
+		}
+		// position buffer reset
+		// 10 points since each point is ~20ms apart and each packet is ~50ms apart so 10 points gives us 4 packets resolution
+		positionBuffer = new pb[10];
+		for(int i=0;i<10;i++) {
+			positionBuffer[i].position = gameObject.transform.position;
+			positionBuffer[i].time = Time.time;
+		}
 		// reset the vars
 		currentIntstamp = 0;
-		currentTimestamp = 0;
-		bezPosition = new Vector3[5];
-		bezRotation = new Quaternion[5];
-		hasRigidBody = (gameObject.rigidbody!=null);
+		currentTimestamp = Network.time;
+		//bezPosition = new Vector3[5];
+		//bezRotation = new Quaternion[5];
 
 		/*debug
 		Vector3[] tmpvec = new Vector3[5] {
@@ -73,19 +109,19 @@ public class netInterpolation : MonoBehaviour {
 	void OnSerializeNetworkView(BitStream stream, NetworkMessageInfo info) {
 		// set up local copies
 		Vector3 pPosition;
-		Quaternion pRotation;
+		Quaternion pRotation = new Quaternion();
 		int pIntstamp;
-		float pTimestamp;
 
 		// check if we need to update or if we are being updated (ie server vs client)
 		if (stream.isWriting) {
 			// server
 			// update stuff
 			currentIntstamp = currentIntstamp+1;
+			currentTimestamp++;
 
 			// copy for streaming
 			pPosition = gameObject.transform.position;
-			pRotation = gameObject.rigidbody.rotation;
+			if(hasRigidBody) pRotation = gameObject.rigidbody.rotation;
 			pIntstamp = currentIntstamp;		// this will tick over after about half a year, so don't leave it running too long
 
 			// set stream
@@ -96,14 +132,68 @@ public class netInterpolation : MonoBehaviour {
 		} else {
 			// client
 			pPosition = new Vector3();
-			pRotation = new Quaternion();
+			//if(hasRigidBody) pRotation = new Quaternion();
 			pIntstamp = 0;
-			pTimestamp = Time.time;
 
 			// get stream
 			stream.Serialize(ref pPosition);
 			if(hasRigidBody) stream.Serialize(ref pRotation);
 			stream.Serialize(ref pIntstamp);
+
+			// convert to a packet
+			packet newPacket = new packet();
+			newPacket.position = pPosition;
+			newPacket.rotation = pRotation;
+			newPacket.timestamp = info.timestamp;
+			newPacket.intstamp = pIntstamp;
+			newPacket.delay = Network.time - info.timestamp;
+
+			// do the checking
+			if (packets[4].intstamp==0) {
+				// no previous data so just set it and move along
+				gameObject.transform.position = newPacket.position;
+				if(hasRigidBody) gameObject.rigidbody.rotation = newPacket.rotation;
+
+			} else if (packets[4].intstamp<newPacket.intstamp-1) {
+				// did we lose any packets?
+				// tib siht :ODOT
+
+			} else {
+				// everythings normal so interpolate away!
+				// remember - previous history is correct since we corrected for it
+				double bufferTime = Time.time - newPacket.delay;
+
+				//Debug.Log(newPacket.delay);
+				//Debug.Log(bufferTime);
+
+				// find the relevant position buffer
+				//int pbIndex = Mathf.FloorToInt(9 - (float)(bufferTime - positionBuffer[9].time) / Time.fixedDeltaTime);
+				int pbIndex = -1;
+				for(int i=9;i>=0;i--) {
+					// check timestamp
+					if (positionBuffer[i].time<bufferTime) {
+						pbIndex = i;
+						break;
+					}
+				}
+
+				// TODO: pbIndex keeps returning 9 - fix it
+
+				// make sure it misses the first pass
+				if (pbIndex!=-1) {
+					// lerp it a bit
+					//Debug.Log(pbIndex);
+					Vector3 whereItWas = Vector3.Lerp(positionBuffer[pbIndex].position,
+				                                  	positionBuffer[pbIndex+1].position,
+				                                  	(float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+
+					// check it was within a tolerance (sqr faster since no sqrt)
+					if (Vector3.SqrMagnitude(whereItWas-newPacket.position)>0.3) {
+						// correct it by shifting the current location by the difference in position (not a good idea but should work as a first pass)
+						gameObject.transform.position += newPacket.position - whereItWas;
+					}
+				}
+			}
 
 			// add the packet to the list
 			// ordering: 0=oldest,4=latest
@@ -112,16 +202,13 @@ public class netInterpolation : MonoBehaviour {
 				if (i!=4 && packets[i+1].intstamp < pIntstamp) {
 					packets[i] = packets[i+1];
 				} else {
-					packets[i].position = pPosition;
-					packets[i].rotation = pRotation;
-					packets[i].timestamp = pTimestamp;
-					packets[i].intstamp = pIntstamp;
+					packets[i] = newPacket;
 					break;
 				}
 			}
 
 			// set up the stuff needed to interpolate
-			//Debug.Log(Time.time - packets[0].timestamp);
+			//Debug.Log(Network.time - packets[0].timestamp);
 			//if (packets[1].timestamp-packets[0].timestamp>0.01) Debug.Log("Balls");
 			/*string tmpstr = "";
 			tmpstr += "0";
@@ -135,13 +222,13 @@ public class netInterpolation : MonoBehaviour {
 			// set us to the last one
 			currentIntstamp = packets[0].intstamp;
 			// set time
-			currentTimestamp = Time.time;
+			currentTimestamp = Network.time;
 
 			// set up the Bezier curves
 			// first find out the starting packet
-			int startPacket = 0;
+			/*int startPacket = 0;
 			for(int i=0;i<4;i++) {
-				if (packets[i+1].timestamp > Time.time-0.1) {
+				if (packets[i+1].timestamp > Network.time-0.1) {
 					startPacket = i;
 					break;
 				}
@@ -150,29 +237,43 @@ public class netInterpolation : MonoBehaviour {
 			for(int i=startPacket;i<5;i++) {
 				bezPosition[i-startPacket] = BinCoefs[startPacket,i-startPacket] * packets[i].position;
 				//bezRotation[i-startPacket] = BinCoefs[startPacket,i-startPacket] * packets[i].rotation;
-				if(hasRigidBody) bezRotation[i-startPacket] = packets[i].rotation;	// need to somehow lerp it here instead for performance
+				//if(hasRigidBody) bezRotation[i-startPacket] = packets[i].rotation;	// need to somehow lerp it here instead for performance
 			}
 			// set no of point
 			noOfPoints = 5-startPacket;
 			// do division now for speed
-			normalizer = 1/(packets[4].timestamp-packets[startPacket].timestamp);
+			normalizer = (float)(1/(packets[4].timestamp-packets[startPacket].timestamp));
+			*/
 		}
+	}
+
+	// update the position buffer
+	void FixedUpdate() {
+		// shift everything down 1
+		// ordering: 0=oldest,10=latest
+		for(int i=0;i<9;i++) {
+			positionBuffer[i] = positionBuffer[i+1];
+		}
+		// add new position to the buffer
+		pb newPb = new pb();
+		newPb.position = gameObject.transform.position;
+		newPb.time = Time.time;
 	}
 
 	// lerp it
-	void FixedUpdate() {
+	/*void FixedUpdate() {
 		if (Network.isClient) {
 			if (noOfPoints>1) {
-				float t = Time.time - currentTimestamp;
+				float t = (float)(Network.time - currentTimestamp);	// shouldn't overflow
 				t = t*normalizer;	// normalize the timestep - not the best idea...
-				gameObject.transform.position = BezPositionInterpolate(t);
-				if(hasRigidBody) gameObject.rigidbody.rotation = BezRotationInterpolate(t);
+				gameObject.transform.position = PositionInterpolate(t);
+				//if(hasRigidBody) gameObject.rigidbody.rotation = BezRotationInterpolate(t);
 			}
 		}
-	}
+	}*/
 
 	// get the interpolated position
-	Vector3 BezPositionInterpolate(float t) {
+	/*Vector3 BezPositionInterpolate(float t) {
 		Vector3 tmp = new Vector3();
 		for(int i=0;i<noOfPoints;i++) {
 			tmp += bezPosition[i] * QuickPower(t,i) * QuickPower(1-t,noOfPoints-1-i);
@@ -199,5 +300,5 @@ public class netInterpolation : MonoBehaviour {
 			tmp *= t;
 		}
 		return tmp;
-	}
+	}*/
 }
