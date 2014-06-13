@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Config>
 	<!-- need to update this every time something changes - must be an increasing number -->
-	<Version build="7"/>
+	<Version build="8"/>
 	<Options>
 		<Option optionName="SoundVolume" value=".75"/>
 		<Option optionName="MusicVolume" value=".5"/>
@@ -42,5 +42,5 @@
 		<Ball name="Ball" location="ball"/>
 	</Models>
 	<!-- random server info - only needs updating if an RPC is added/changed -->
-	<ServerInfo version="Alpaxa" hostname="" playername="" NATmode="-1"/>
+	<ServerInfo version="Alpaxia" hostname="" playername="" NATmode="-1"/>
 </Config>

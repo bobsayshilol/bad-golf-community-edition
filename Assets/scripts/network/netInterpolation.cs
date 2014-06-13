@@ -4,6 +4,7 @@ using System.Collections;
 // individual packets
 public struct packet {
 	public Vector3 position;
+	public Vector3 velocity;
 	public Quaternion rotation;
 	public int intstamp;
 	public double timestamp;
@@ -13,10 +14,14 @@ public struct packet {
 // position buffer things
 public struct pb {
 	public Vector3 position;
+	public Vector3 velocity;
+	public Quaternion rotation;
 	public double time;
 }
 
 /* Doesn't actually interpolate yet - currently just checks previous locations are valid
+ * 
+ * THIS SCRIPT RELIES ON A CONSTANT Time.fixedDeltaTime
  * 
  * How it works (for when I forget/when other people want to read it):
  * Client sends messages to server about button presses (in another script)
@@ -26,7 +31,6 @@ public struct pb {
  * 
  * TODO:
  * Add a bit that corrects velocity for vehicles not owned by the client (otherwise they just jump everywhere!)
- * Add XZ plane angle sync aswell (ignore the others as client can predict them accurately enough)
  */
 public class netInterpolation : MonoBehaviour {
 	NetworkViewID viewID;
@@ -48,6 +52,10 @@ public class netInterpolation : MonoBehaviour {
 	};*/
 	bool hasRigidBody;
 
+	// tolerances
+	float maxDist = 0.1f;	// maximum distance tolerance (Unity units)
+	float maxAngle = 5;		// maximum angle tolerance (degrees) 
+
 	// called to start it
 	public void Init(NetworkViewID cartViewID) {
 		viewID = cartViewID;
@@ -59,13 +67,13 @@ public class netInterpolation : MonoBehaviour {
 		// check for rigidbody
 		hasRigidBody = (gameObject.rigidbody!=null);
 
-		// fixed no of packets to interpolate from (I know, I know...)
+		// fixed no of packets to interpolate from (I know, I know...) - this might not even be needed
 		packets = new packet[5];
 		for(int i=0;i<5;i++) {
 			packets[i].position = gameObject.transform.position;
 			if(hasRigidBody) packets[i].rotation = gameObject.rigidbody.rotation;
 			packets[i].timestamp = Network.time;
-			packets[i].intstamp = 0;
+			packets[i].intstamp = 0;	// first packet will be 1 so 0 is the null-packet
 			packets[i].delay = 0;
 		}
 		// position buffer reset
@@ -73,6 +81,8 @@ public class netInterpolation : MonoBehaviour {
 		positionBuffer = new pb[10];
 		for(int i=0;i<10;i++) {
 			positionBuffer[i].position = gameObject.transform.position;
+			if(hasRigidBody) positionBuffer[i].velocity = gameObject.rigidbody.velocity;
+			if(hasRigidBody) positionBuffer[i].rotation = gameObject.rigidbody.rotation;
 			positionBuffer[i].time = Time.time;
 		}
 		// reset the vars
@@ -108,7 +118,8 @@ public class netInterpolation : MonoBehaviour {
 
 	void OnSerializeNetworkView(BitStream stream, NetworkMessageInfo info) {
 		// set up local copies
-		Vector3 pPosition;
+		Vector3 pPosition;	// don't know why this doesn't have to be defined :S
+		Vector3 pVelocity = new Vector3();
 		Quaternion pRotation = new Quaternion();
 		int pIntstamp;
 
@@ -116,8 +127,7 @@ public class netInterpolation : MonoBehaviour {
 		if (stream.isWriting) {
 			// server
 			// update stuff
-			currentIntstamp = currentIntstamp+1;
-			currentTimestamp++;
+			currentIntstamp++;
 
 			// copy for streaming
 			pPosition = gameObject.transform.position;
@@ -126,6 +136,7 @@ public class netInterpolation : MonoBehaviour {
 
 			// set stream
 			stream.Serialize(ref pPosition);
+			if(hasRigidBody) stream.Serialize(ref pVelocity);
 			if(hasRigidBody) stream.Serialize(ref pRotation);
 			stream.Serialize(ref pIntstamp);
 
@@ -137,6 +148,7 @@ public class netInterpolation : MonoBehaviour {
 
 			// get stream
 			stream.Serialize(ref pPosition);
+			if(hasRigidBody) stream.Serialize(ref pVelocity);
 			if(hasRigidBody) stream.Serialize(ref pRotation);
 			stream.Serialize(ref pIntstamp);
 
@@ -167,7 +179,6 @@ public class netInterpolation : MonoBehaviour {
 				//Debug.Log(bufferTime);
 
 				// find the relevant position buffer
-				//int pbIndex = Mathf.FloorToInt(9 - (float)(bufferTime - positionBuffer[9].time) / Time.fixedDeltaTime);
 				int pbIndex = -1;
 				for(int i=9;i>=0;i--) {
 					// check timestamp
@@ -177,20 +188,63 @@ public class netInterpolation : MonoBehaviour {
 					}
 				}
 
-				// TODO: pbIndex keeps returning 9 - fix it
-
 				// make sure it misses the first pass
-				if (pbIndex!=-1) {
+				// special case pbIndex==9 is safe to ignore since we've updated all before it
+				if (pbIndex!=-1 && pbIndex!=9) {
+					// position check
 					// lerp it a bit
-					//Debug.Log(pbIndex);
 					Vector3 whereItWas = Vector3.Lerp(positionBuffer[pbIndex].position,
-				                                  	positionBuffer[pbIndex+1].position,
-				                                  	(float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
-
+					                                  positionBuffer[pbIndex+1].position,
+					                                  (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+					
 					// check it was within a tolerance (sqr faster since no sqrt)
-					if (Vector3.SqrMagnitude(whereItWas-newPacket.position)>0.3) {
+					if (Vector3.SqrMagnitude(whereItWas-newPacket.position)>maxDist*maxDist) {
 						// correct it by shifting the current location by the difference in position (not a good idea but should work as a first pass)
-						gameObject.transform.position += newPacket.position - whereItWas;
+						Vector3 deltaPosition = newPacket.position - whereItWas;
+						gameObject.transform.position += deltaPosition;
+						
+						// correct the previous positions aswell
+						for(int i=pbIndex+1;i==9;i++) {
+							positionBuffer[i].position += deltaPosition;
+						}
+					}
+
+					if(hasRigidBody) {
+						// rotation check
+						// lerp it a bit (or slerp for speed?)
+						Quaternion whereItRot = Quaternion.Lerp(positionBuffer[pbIndex].rotation,
+						                                  positionBuffer[pbIndex+1].rotation,
+						                                  (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+						
+						// check it was within a tolerance (degrees for some reason and seems to be always positive)
+						if (Quaternion.Angle(whereItRot,newPacket.rotation)>maxAngle) {
+							// correct it by rotating the current rotation by the difference in rotation (not a good idea but should work as a first pass)
+							Quaternion deltaRotation = newPacket.rotation * Quaternion.Inverse(whereItRot);
+							gameObject.rigidbody.rotation = deltaRotation * gameObject.rigidbody.rotation;
+							
+							// correct the previous positions aswell
+							for(int i=pbIndex+1;i==9;i++) {
+								positionBuffer[i].rotation = deltaRotation * positionBuffer[i].rotation;
+							}
+						}
+						
+						// velocity check
+						// lerp it a bit
+						Vector3 whereItVel = Vector3.Lerp(positionBuffer[pbIndex].velocity,
+						                                  positionBuffer[pbIndex+1].velocity,
+						                                  (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+						
+						// check it was within a tolerance (sqr faster since no sqrt)
+						if (Vector3.SqrMagnitude(whereItVel-newPacket.velocity)>maxDist*maxDist) {
+							// correct it by shifting the current location by the difference in position (not a good idea but should work as a first pass)
+							Vector3 deltaVelocity = newPacket.velocity - whereItVel;
+							gameObject.rigidbody.velocity += deltaVelocity;
+							
+							// correct the previous positions aswell
+							for(int i=pbIndex+1;i==9;i++) {
+								positionBuffer[i].velocity += deltaVelocity;
+							}
+						}
 					}
 				}
 			}
@@ -257,7 +311,10 @@ public class netInterpolation : MonoBehaviour {
 		// add new position to the buffer
 		pb newPb = new pb();
 		newPb.position = gameObject.transform.position;
+		if(hasRigidBody) newPb.rotation = gameObject.rigidbody.rotation;
+		if(hasRigidBody) newPb.velocity = gameObject.rigidbody.velocity;
 		newPb.time = Time.time;
+		positionBuffer[9] = newPb;
 	}
 
 	// lerp it

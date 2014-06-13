@@ -51,13 +51,37 @@ public class networkVariables : MonoBehaviour {
 	public int NATmode = -1;						// which NAT version we have for server comparison
 
 	// helpers
-	public PlayerInfo getPlayer( int playerId ){
+	public PlayerInfo getPlayerById( int playerId ){
 		for(int i=0; i<players.Count; i++)
 		{
 			PlayerInfo p = (PlayerInfo)players[i];
 			if(p.playerId==playerId){
 				return p;
 			}
+		}
+		return null;
+	}
+	public PlayerInfo getPlayerByName(string name){
+		for(int i=0; i<players.Count; i++)
+		{
+			PlayerInfo p = (PlayerInfo)players[i];
+			if(p.name==name){
+				return p;
+			}
+		}
+		return null;
+	}
+	public PlayerInfo getOwner(GameObject obj){
+		if(obj && obj.networkView) {
+			for(int i=0; i<players.Count; i++)
+			{
+				PlayerInfo p = (PlayerInfo)players[i];
+				if(p.ballViewID==obj.networkView.viewID
+				   || p.cartViewID==obj.networkView.viewID
+				   || p.characterViewID==obj.networkView.viewID){
+					return p;
+				}
+			};
 		}
 		return null;
 	}

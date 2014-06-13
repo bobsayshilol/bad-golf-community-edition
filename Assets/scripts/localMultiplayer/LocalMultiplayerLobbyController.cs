@@ -60,7 +60,7 @@ public class LocalMultiplayerLobbyController : MonoBehaviour
 	{
 		string color = colorKeys [colorPerPlayer [index]];
 
-		PlayerInfo p = nvs.getPlayer (index);
+		PlayerInfo p = nvs.getPlayerById (index);
 		if(p!=null) p.color = color;
 
 		RecolorPlayer.recolorPlayerBody (ed_playerRenderer [index], color);
@@ -68,7 +68,7 @@ public class LocalMultiplayerLobbyController : MonoBehaviour
 
 	private void setCharacterOn( int index )
 	{
-		PlayerInfo p = nvs.getPlayer (index);
+		PlayerInfo p = nvs.getPlayerById (index);
 		p.characterModel = nvs.characterModels[characterPerPlayer [index] ];
 
 		//Switch player character
@@ -89,7 +89,7 @@ public class LocalMultiplayerLobbyController : MonoBehaviour
 
 	private void setCartOn( int index )
 	{
-		PlayerInfo p = nvs.getPlayer (index);
+		PlayerInfo p = nvs.getPlayerById (index);
 		p.cartModel = nvs.buggyModels [cartPerPlayer [index]];
 
 		//Switch cart
@@ -148,7 +148,7 @@ public class LocalMultiplayerLobbyController : MonoBehaviour
 			}
 
 			//remove player from active players
-			PlayerInfo p = nvs.getPlayer(playerIndex);
+			PlayerInfo p = nvs.getPlayerById(playerIndex);
 			nvs.players.Remove(p);
 
 		}

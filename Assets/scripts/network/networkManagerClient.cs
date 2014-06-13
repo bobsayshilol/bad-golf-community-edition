@@ -59,7 +59,6 @@ public class networkManagerClient : MonoBehaviour {
 		(GameObject.Find("main").GetComponent(typeof(GameControl)) as GameControl).ed_levelPreviewScreen.SetActive(false);
 		
 		 //show chat bubble over players when they chat
-
 		gameObject.AddComponent("ChatBubble");
 		
 		//cart reset
