@@ -3,7 +3,7 @@
 [Tt]emp/
 [Oo]bj/
 # ignore any builds
-*_Data/
+/*_Data/
 *.apk
 *.exe
 
