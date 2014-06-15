@@ -2,8 +2,8 @@
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
-build_Data/
-bad golf_Data/
+# ignore any builds
+*_Data/
 *.apk
 *.exe
 
@@ -37,5 +37,5 @@ test-results/
 [Dd]esktop.ini
 $RECYCLE.BIN/
 
-# That Unity thing
+# That Unity debug thing
 UnityPlayer_Symbols.pdb
