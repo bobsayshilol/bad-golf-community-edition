@@ -52,20 +52,16 @@ public class networkVariables : MonoBehaviour {
 
 	// helpers
 	public PlayerInfo getPlayerById( int playerId ){
-		for(int i=0; i<players.Count; i++)
-		{
-			PlayerInfo p = (PlayerInfo)players[i];
-			if(p.playerId==playerId){
+		foreach (PlayerInfo p in players) {
+			if (p.playerId==playerId) {
 				return p;
 			}
 		}
 		return null;
 	}
 	public PlayerInfo getPlayerByName(string name){
-		for(int i=0; i<players.Count; i++)
-		{
-			PlayerInfo p = (PlayerInfo)players[i];
-			if(p.name==name){
+		foreach (PlayerInfo p in players) {
+			if (p.name==name) {
 				return p;
 			}
 		}
@@ -73,15 +69,21 @@ public class networkVariables : MonoBehaviour {
 	}
 	public PlayerInfo getOwner(GameObject obj){
 		if(obj && obj.networkView) {
-			for(int i=0; i<players.Count; i++)
-			{
-				PlayerInfo p = (PlayerInfo)players[i];
+			foreach (PlayerInfo p in players) {
 				if(p.ballViewID==obj.networkView.viewID
 				   || p.cartViewID==obj.networkView.viewID
 				   || p.characterViewID==obj.networkView.viewID){
 					return p;
 				}
-			};
+			}
+		}
+		return null;
+	}
+	public PlayerInfo getPlayerByNetworkPlayer(NetworkPlayer player){
+		foreach (PlayerInfo p in players) {
+			if (p.player==player) {
+				return p;
+			}
 		}
 		return null;
 	}
