@@ -34,7 +34,7 @@ public class networkManagerClient : MonoBehaviour {
 		// All scripts are called after we have a reference to the buggy and a NetworkViewID.
 
 		// updates network-sunk fiziks
-		gameObject.AddComponent("controlClient");
+		gameObject.AddComponent("netControl");
 
 		//hit ball
 		gameObject.AddComponent ("netSwing");

@@ -50,11 +50,12 @@ public class netInterpolation : MonoBehaviour {
 	bool hasRigidBody;
 
 	// tolerances
-	float maxDistanceDifference = 0.1f;		// maximum distance tolerance (Unity units)
-	float maxAngleDifference = 5;			// maximum angle tolerance (degrees)
-	float maxVelocityDifference = 0.2f;		// maximum velocity tolerance (Unity units/s)
+	float maxDistanceDifference = 1f;		// maximum distance tolerance (Unity units)
+	float maxAngleDifference = 10;			// maximum angle tolerance (degrees)
+	float maxVelocityDifference = 2f;		// maximum velocity tolerance (Unity units/s)
 
 	// 10 points since each point is ~20ms apart and each packet is ~50ms apart so 10 points gives us 4 packets resolution
+	// also means max ping is ~200ms so it will need to become dynamic
 	// TODO: make this dynamic after it becomes stable
 	int positionBufferSize = 10;
 

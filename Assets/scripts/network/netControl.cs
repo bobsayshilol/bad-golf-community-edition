@@ -86,12 +86,12 @@ public class netControl : MonoBehaviour {
 
 			myInfo.ballGameObject.transform.rotation = Quaternion.LookRotation((pin.transform.position - myInfo.ballGameObject.transform.position) - new Vector3(0, pin.transform.position.y - myInfo.ballGameObject.transform.position.y,0));	
 			myInfo.characterGameObject.transform.localPosition = new Vector3(1.7f,-.2f,0);
-			myInfo.characterGameObject.transform.localRotation = Quaternion.identity * new Quaternion(0f, -Mathf.PI/2, 0f, 1f);
+			myInfo.characterGameObject.transform.localRotation = new Quaternion(0f, -Mathf.PI/2, 0f, 1f);
 
 			localBallAnalog.transform.rotation = myInfo.ballGameObject.transform.rotation;
 			// lock golf ball
 			myInfo.ballGameObject.rigidbody.constraints = RigidbodyConstraints.FreezeAll;
-			//*/ move camera - HACKY
+			//*/ move camera - HACKY (as if the rest of this isn't)
 			GameObject buggyCam = nvs.myCam.gameObject;
 			(buggyCam.GetComponent("FollowPlayerScript") as FollowPlayerScript).enabled = false;
 			cameraParentTransform = buggyCam.transform.parent;	// keep a reference for later

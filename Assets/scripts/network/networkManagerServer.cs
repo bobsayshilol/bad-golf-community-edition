@@ -49,7 +49,7 @@ public class networkManagerServer : MonoBehaviour {
 		// All scripts are called after we have a reference to the buggy and a NetworkViewID.
 
 		// receives all players inputs and handles fiziks
-		gameObject.AddComponent("controlServer");
+		gameObject.AddComponent("netControl");
 
 		//ball range finder
 		gameObject.AddComponent ("netTransferToSwing");
