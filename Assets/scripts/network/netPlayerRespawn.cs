@@ -43,8 +43,10 @@ public class netPlayerRespawn : MonoBehaviour {
 		// check for keypress
 		if (Input.GetKeyDown(KeyCode.R) && gotReferences) {
 			// move them down a lot to trigger a reset
-			if(nvs.myInfo!=null)	//TODO: add player identifier support (offline support)
+			if(nvs.myInfo!=null){	//TODO: add player identifier support (offline support)
+				networkView.RPC("ResetMe", RPCMode.Server);
 				nvs.myInfo.cartGameObject.transform.position = new Vector3(0,respawnThreshold - 1,0);
+			}
 		}
 	}
 	

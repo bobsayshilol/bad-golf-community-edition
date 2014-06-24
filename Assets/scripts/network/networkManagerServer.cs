@@ -206,24 +206,22 @@ public class networkManagerServer : MonoBehaviour {
 		Network.DestroyPlayerObjects(player);
 		
 		PlayerInfo toDelete = new PlayerInfo();
-		foreach (PlayerInfo p in nvs.players)
-		{
-			if (p.player==player) {
-				if (p.currentMode==0 || p.currentMode==1) {
-					// remove their stuff
-					Destroy(p.cartGameObject);
-					Destroy(p.ballGameObject);
-					Destroy(p.characterGameObject);
-					// tell everyone else to aswell - move this onto the server
-					networkView.RPC("RemoveViewID", RPCMode.All, p.characterViewID);
-					networkView.RPC("RemoveViewID", RPCMode.All, p.cartViewID);
-					networkView.RPC("RemoveViewID", RPCMode.All, p.ballViewID);
+		PlayerInfo p = nvs.getPlayerByNetworkPlayer(player);
+		if (p!=null) {
+			if (p.currentMode==0 || p.currentMode==1) {
+				// remove their stuff
+				Destroy(p.cartGameObject);
+				Destroy(p.ballGameObject);
+				Destroy(p.characterGameObject);
+				// tell everyone else to aswell - move this onto the server
+				networkView.RPC("RemoveViewID", RPCMode.All, p.characterViewID);
+				networkView.RPC("RemoveViewID", RPCMode.All, p.cartViewID);
+				networkView.RPC("RemoveViewID", RPCMode.All, p.ballViewID);
 
-				} else if (p.currentMode==2) {// if they haven't got anything yet
-				}
-				// remove from array
-				toDelete = p;
+			} else if (p.currentMode==2) {// if they haven't got anything yet
 			}
+			// remove from array
+			toDelete = p;
 		}
 		if (nvs.players.Contains(toDelete)) nvs.players.Remove(toDelete);
 	}

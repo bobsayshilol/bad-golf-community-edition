@@ -30,11 +30,11 @@ public struct pb {
  * Client checks that it was at that location previously and if not makes adjustments
  */
 public class netInterpolation : MonoBehaviour {
-	NetworkViewID viewID;
+	NetworkViewID viewID;	//?
 	packet[] packets;
 	pb[] positionBuffer;
 	int currentIntstamp;		// number of "current" packet in interpolation
-	double currentTimestamp;	// time of recieving "current" packet in interpolation
+	double currentTimestamp;	// time of recieving "current" packet in interpolation	//?
 	//Vector3[] bezPosition;		// co-efs for position interpolation
 	//Quaternion[] bezRotation;	// co-efs for rotation interpolation
 	/*int noOfPoints = 0;			// no of points we're interpolating from
@@ -50,9 +50,9 @@ public class netInterpolation : MonoBehaviour {
 	bool hasRigidBody;
 
 	// tolerances
-	float maxDistanceDifference = 1f;		// maximum distance tolerance (Unity units)
+	float maxDistanceDifference = 2f;		// maximum distance tolerance (Unity units)
 	float maxAngleDifference = 10;			// maximum angle tolerance (degrees)
-	float maxVelocityDifference = 2f;		// maximum velocity tolerance (Unity units/s)
+	//float maxVelocityDifference = 2f;		// maximum velocity tolerance (Unity units/s) - currently ignore
 
 	// 10 points since each point is ~20ms apart and each packet is ~50ms apart so 10 points gives us 4 packets resolution
 	// also means max ping is ~200ms so it will need to become dynamic
@@ -206,14 +206,14 @@ public class netInterpolation : MonoBehaviour {
 						debugcount=0;
 						debugtime=0;
 					}*/
-
+					//int cpbIndex=pbIndex;
 					// loop through the positionBuffer applying corrections each time - breaks it so don't!
-					//for (int cpbIndex=pbIndex;cpbIndex<positionBufferSize-1;cpbIndex++) {
+					for (int cpbIndex=pbIndex;cpbIndex<positionBufferSize-1;cpbIndex++) {
 						// position check
 						// lerp it a bit
-						Vector3 whereItWas = Vector3.Lerp(positionBuffer[pbIndex].position,
-						                                  positionBuffer[pbIndex+1].position,
-						                                  (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+						Vector3 whereItWas = Vector3.Lerp(positionBuffer[cpbIndex].position,
+						                                  positionBuffer[cpbIndex+1].position,
+						                                  (float)(bufferTime - positionBuffer[cpbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
 						
 						// check it was within a tolerance (sqr faster since no sqrt)
 						if (Vector3.SqrMagnitude(whereItWas-newPacket.position)>maxDistanceDifference*maxDistanceDifference) {
@@ -222,17 +222,17 @@ public class netInterpolation : MonoBehaviour {
 							gameObject.transform.position += deltaPosition;
 							
 							// correct the previous positions aswell
-							for(int i=pbIndex+1;i==positionBufferSize-1;i++) {
+							for(int i=cpbIndex+1;i==positionBufferSize-1;i++) {
 								positionBuffer[i].position += deltaPosition;
 							}
 						}
 
 						if(hasRigidBody) {
 							// rotation check
-							// lerp it a bit (or slerp for speed?)
-							Quaternion whereItRot = Quaternion.Lerp(positionBuffer[pbIndex].rotation,
-							                                        positionBuffer[pbIndex+1].rotation,
-							                                        (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+							// slerp it a bit (or lerp for speed?)
+							Quaternion whereItRot = Quaternion.Slerp(positionBuffer[cpbIndex].rotation,
+							                                        positionBuffer[cpbIndex+1].rotation,
+							                                        (float)(bufferTime - positionBuffer[cpbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
 							
 							// check it was within a tolerance (degrees for some reason and seems to be always positive)
 							if (Quaternion.Angle(whereItRot,newPacket.rotation)>maxAngleDifference) {
@@ -241,16 +241,17 @@ public class netInterpolation : MonoBehaviour {
 								gameObject.rigidbody.rotation = deltaRotation * gameObject.rigidbody.rotation;
 								
 								// correct the previous positions aswell
-								for(int i=pbIndex+1;i==positionBufferSize-1;i++) {
+								for(int i=cpbIndex+1;i==positionBufferSize-1;i++) {
 									positionBuffer[i].rotation = deltaRotation * positionBuffer[i].rotation;
 								}
 							}
-							
+
+							/*
 							// velocity check
 							// lerp it a bit
-							Vector3 whereItVel = Vector3.Lerp(positionBuffer[pbIndex].velocity,
-							                                  positionBuffer[pbIndex+1].velocity,
-							                                  (float)(bufferTime - positionBuffer[pbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
+							Vector3 whereItVel = Vector3.Lerp(positionBuffer[cpbIndex].velocity,
+							                                  positionBuffer[cpbIndex+1].velocity,
+							                                  (float)(bufferTime - positionBuffer[cpbIndex].time) / Time.fixedDeltaTime);	// dividing by Time.fixedDeltaTime since that shouldn't change - right?
 							
 							// check it was within a tolerance (sqr faster since no sqrt)
 							if (Vector3.SqrMagnitude(whereItVel-newPacket.velocity)>maxVelocityDifference*maxVelocityDifference) {
@@ -259,12 +260,12 @@ public class netInterpolation : MonoBehaviour {
 								gameObject.rigidbody.velocity += deltaVelocity;
 								
 								// correct the previous positions aswell
-								for(int i=pbIndex+1;i==positionBufferSize-1;i++) {
+								for(int i=cpbIndex+1;i==positionBufferSize-1;i++) {
 									positionBuffer[i].velocity += deltaVelocity;
 								}
-							}
+							}*/
 						}
-					//}
+					}
 				}
 			}
 

@@ -31,10 +31,14 @@ public class networkManagerClient : MonoBehaviour {
 	void AddScripts() {
 		// Anything you want to have running in the lobby should go in the netLobby script.
 		// This function gets called when a game starts.
-		// All scripts are called after we have a reference to the buggy and a NetworkViewID.
+		// All scripts are called after we have a reference to the buggy and a NetworkViewID and the map has been loaded.
 
-		// updates network-sunk fiziks
+		// control stuff
 		gameObject.AddComponent("netControl");
+
+		// initializes the thingy
+		GameObject pin = GameObject.Find ("winningPole") as GameObject;
+		if (pin!=null) (pin.GetComponent ("netWinCollider") as netWinCollider).initialize();
 
 		//hit ball
 		gameObject.AddComponent ("netSwing");
@@ -169,6 +173,7 @@ public class networkManagerClient : MonoBehaviour {
 		}
 		// get server
 		myInfo.server = myInfo.cartViewID.owner;
+
 		// call the functions that need them
 		AddScripts();
 	}
@@ -233,19 +238,9 @@ public class networkManagerClient : MonoBehaviour {
 	[RPC]
 	void RemovePlayer(NetworkPlayer player) {
 		PrintText("Someone left");
-		
+
 		// remove from array
-		networkVariables nvs = GetComponent("networkVariables") as networkVariables;
-		PlayerInfo toDelete = new PlayerInfo();
-		
-		foreach (PlayerInfo p in nvs.players)
-		{
-			if (p.player==player) {
-				// remove from array
-				toDelete = p;
-			}
-		}
-		
+		PlayerInfo toDelete = nvs.getPlayerByNetworkPlayer(player);
 		if (nvs.players.Contains(toDelete)) nvs.players.Remove(toDelete);
 	}
 	

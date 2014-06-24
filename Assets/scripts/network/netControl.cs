@@ -6,9 +6,11 @@ public class netControl : MonoBehaviour {
 	networkVariables nvs;
 	PlayerInfo myInfo;
 	Transform cameraParentTransform;
-	GameObject pin;
-	GameObject localBallAnalog;	
+	GameObject localBallAnalog;
+	bool honking = false;
+	bool loaded = false;
 
+	// called when first added
 	void Start() {
 		// get variables we need
 		nvs = GetComponent("networkVariables") as networkVariables;
@@ -17,20 +19,21 @@ public class netControl : MonoBehaviour {
 		localBallAnalog = new GameObject ();
 	}
 
+	// called when the level has been loaded
+	void Loaded() {
+	}
+
 	void Update() {
 		// only do key presses if it's not paused
-		if (!myInfo.playerIsPaused) {
-			// HONK (only if in a buggy)
-			if (Input.GetKeyDown(KeyCode.Q) && myInfo.currentMode==0) {
-				networkView.RPC("IHonked", RPCMode.All, myInfo.player);
+		if (!myInfo.playerIsPaused && myInfo.currentMode==0) {
+			// HONK
+			if (Input.GetKeyDown(KeyCode.Q) && !honking) {
+				honking = true;
+				networkView.RPC("IHonked", RPCMode.Others, myInfo.player);
+				Honk(myInfo.cartGameObject);
+			} else if(Input.GetKeyUp(KeyCode.Q)) {
+				honking = false;
 			}
-				
-		}
-
-		// find the pin
-		if(pin==null){
-			pin = GameObject.Find ("winningPole") as GameObject;
-			if (pin!=null) (pin.GetComponent ("netWinCollider") as netWinCollider).initialize (); //setup the pin while we have a reference to it.
 		}
 	}
 
@@ -54,6 +57,7 @@ public class netControl : MonoBehaviour {
 		}
 
 		// update the fiziks AFTER getting local key input
+		// this moves all the carts
 		foreach (PlayerInfo p in nvs.players) {
 			// if in buggy
 			if (p.currentMode==0) {
@@ -64,14 +68,66 @@ public class netControl : MonoBehaviour {
 			}
 		}
 
+		// send server our input if we're a client - only to the server
+		if (Network.isClient) {
+			networkView.RPC("KartMovement", RPCMode.Server, myInfo.h, myInfo.v, myInfo.playerId);
+		} else {
+			// goodbye bandwidth - but is there a better way?
+			/*foreach (PlayerInfo p in nvs.players) {
+				networkView.RPC("KartMovement", RPCMode.Others, p.h, p.v, p.playerId);
+			}*/
+		}
 	}
-
 	
+	/* if we're a server then update them all - can't use this
+	void OnSerializeNetworkView(BitStream stream, NetworkMessageInfo info) {
+		// check if we need to update or if we are being updated (ie server vs client)
+		if (stream.isWriting) {
+			// server
+
+			* "packet" format:
+			 * int playerId
+			 * float h
+			 * float v
+			*
+			foreach (PlayerInfo p in nvs.players) {
+				stream.Serialize(ref p.playerId);
+				stream.Serialize(ref p.h);
+				stream.Serialize(ref p.v);
+			}
+			
+		} else {
+			// client
+
+			// "packet"
+			int playerId = 0;
+			float h = 0;
+			float v = 0;
+
+			// need to go through each player but we don't know the order, so just loop playercount times
+			for(int i=0;i<nvs.players.Count;i++) {
+				stream.Serialize(ref playerId);
+				stream.Serialize(ref h);
+				stream.Serialize(ref v);
+
+				// make sure it's not us
+				if (playerId==myInfo.playerId) continue;
+				Debug.Log(playerId);
+
+				PlayerInfo p = nvs.getPlayerById(playerId);
+				if (p!=null) {
+					p.h = h;
+					p.v = v;
+				}
+			}
+		}
+	}*/
+
 	void switchToBall(){
 		// if in buggy
 		if (myInfo.currentMode==0) {
-			networkView.RPC ("PlayerSwap", RPCMode.Others, 1, myInfo.player);	//to ball
 			myInfo.currentMode = 1;
+			networkView.RPC ("PlayerSwap", RPCMode.Others, myInfo.currentMode, myInfo.player);	//to ball
 			//stop cart
 			myInfo.cartGameObject.rigidbody.velocity = Vector3.zero;
 			myInfo.cartGameObject.rigidbody.angularVelocity = Vector3.zero;
@@ -84,6 +140,8 @@ public class netControl : MonoBehaviour {
 			//myInfo.characterGameObject.transform.parent = myInfo.ballGameObject.transform;
 			myInfo.characterGameObject.transform.parent = localBallAnalog.transform;
 
+			// find the pin - might have moved
+			GameObject pin = GameObject.Find("winningPole");
 			myInfo.ballGameObject.transform.rotation = Quaternion.LookRotation((pin.transform.position - myInfo.ballGameObject.transform.position) - new Vector3(0, pin.transform.position.y - myInfo.ballGameObject.transform.position.y,0));	
 			myInfo.characterGameObject.transform.localPosition = new Vector3(1.7f,-.2f,0);
 			myInfo.characterGameObject.transform.localRotation = new Quaternion(0f, -Mathf.PI/2, 0f, 1f);
@@ -109,7 +167,7 @@ public class netControl : MonoBehaviour {
 
 	void switchToCart(){
 		myInfo.currentMode = 0;
-		networkView.RPC ("PlayerSwap", RPCMode.Others, 0, myInfo.player);	//to cart
+		networkView.RPC ("PlayerSwap", RPCMode.Others, myInfo.currentMode, myInfo.player);	//to cart
 		// set them in buggy
 		myInfo.characterGameObject.transform.parent = myInfo.cartGameObject.transform;
 		myInfo.characterGameObject.transform.localPosition = new Vector3(0,0,0);
@@ -127,6 +185,11 @@ public class netControl : MonoBehaviour {
 
 		(GetComponent ("netTransferToSwing") as netTransferToSwing).enabled = true;
 	}
+
+	// honks
+	void Honk(GameObject cart) {
+		SoundManager.Get().playSfx3d(cart, "horn1", 5, 500, 1);
+	}
 	
 	// honks
 	[RPC]
@@ -135,11 +198,11 @@ public class netControl : MonoBehaviour {
 		PlayerInfo p = nvs.getPlayerByNetworkPlayer(player);
 		// if it exists do the thing
 		if(p!=null) {
-			SoundManager.Get().playSfx3d(p.cartGameObject, "horn1", 5, 500, 1);
+			Honk(p.cartGameObject);
 		}
 	}
 
-	// change player mode
+	// change player mode - somehow use switchToCart aswell
 	[RPC]
 	void PlayerSwap(int newMode, NetworkPlayer player) {
 		// find the player
@@ -162,6 +225,8 @@ public class netControl : MonoBehaviour {
 				p.cartGameObject.rigidbody.angularVelocity = Vector3.zero;
 				// set them at golf ball
 				p.characterGameObject.transform.parent = p.ballGameObject.transform;
+				// find the pin - might have moved
+				GameObject pin = GameObject.Find("winningPole");
 				p.ballGameObject.transform.rotation = Quaternion.LookRotation((pin.transform.position - p.ballGameObject.transform.position) - new Vector3(0, pin.transform.position.y - p.ballGameObject.transform.position.y,0));	
 				p.characterGameObject.transform.localPosition = new Vector3(1.7f,-.2f,0);
 				p.characterGameObject.transform.localRotation = Quaternion.identity * new Quaternion(0f, -Mathf.PI/2, 0f, 1f);
@@ -177,6 +242,18 @@ public class netControl : MonoBehaviour {
 		}
 	}
 
-
-
+	// updates what a player is currenly doing
+	[RPC]
+	public void KartMovement(float h, float v, int playerID, NetworkMessageInfo info) {
+		if (nvs) {
+			// get the player
+			PlayerInfo p = nvs.getPlayerByNetworkPlayer(info.sender); // using playerID breaks it :S
+			// check it exists
+			if (p!=null) {
+				//if(Network.isServer) {Debug.LogError(new Vector2(p.h,p.v));Debug.LogError(playerID!=myInfo.playerId);}
+				p.h = h;
+				p.v = v;
+			}
+		}
+	}
 }
