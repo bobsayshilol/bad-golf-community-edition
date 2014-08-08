@@ -7,6 +7,7 @@ public class networkVariables : MonoBehaviour {
 	public GameMode gameMode;		//The type of game being created
 	public string levelName;
 
+	// TODO: GameManager for these
 	[HideInInspector]
 	public string[] buggyModels;		// buggy models
 	[HideInInspector]
@@ -52,48 +53,17 @@ public class networkVariables : MonoBehaviour {
 
 	// helpers
 	public PlayerInfo getPlayer( int playerId ){
-		for(int i=0; i<players.Count; i++)
+		/*for(int i=0; i<players.Count; i++)
 		{
 			PlayerInfo p = (PlayerInfo)players[i];
 			if(p.playerId==playerId){
 				return p;
 			}
-		}
+		}*/
 		return null;
 	}
 }
 
-// a class that contains all information on a player
-public class PlayerInfo {
-	public int playerId;						// player identifier
-	public NetworkPlayer player;				// player
-	public NetworkPlayer server;				// server
-	public NetworkViewID cartViewIDTransform;	// NetworkViewID of the cart transform
-	public NetworkViewID cartViewIDRigidbody;	// NetworkViewID of the cart rigidbody
-	public GameObject cartGameObject;			// GameObject of the cart
-	public string cartModel;					// model of the cart
-	public NetworkViewID ballViewID;			// NetworkViewID of the ball
-	public GameObject ballGameObject;			// GameObject of the ball
-	public string ballModel;					// model of the ball
-	public NetworkViewID characterViewID;		// NetworkViewID of the character
-	public GameObject characterGameObject;		// GameObject of the character
-	public string characterModel;				// model of the character
-	public int currentMode = 2;					// current mode of the player (0=in buggy, 1=on foot, 2=spectator)
-	public string name;							// name
-	public string color;						// player color
-	public int score = 0;						// player score
-
-	public GameObject cameraObject;		//The camera following this player; not UI cam
-	public GameObject uiContainer;		//The UI elements (HUD) for this player
-	
-	// do these need to be net-sunk?
-	public bool playerIsBusy   = false;			// player is engaged in an uninteruptable action
-	public bool playerIsPaused = false;			// player is paused
-
-	public CarController carController;		//The movement script for this player's buggy
-	public float v;		//player accelleration/brake input
-	public float h;		//player steering input
-}
 // server comment system
 public class ServerComment {
 	public int NATmode;
